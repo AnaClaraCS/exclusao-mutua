@@ -32,16 +32,15 @@ def registrar_log(tipo, processo):
         elif tipo == 3:
             mensagem = "RELEASE"
 
-        log_file.write(
-           f"{mensagem} - {processo} - [{timestamp}]\n"
-        )
+        log = f"[{timestamp}] - {processo} - {mensagem}\n"
+        log_file.write(log)
 
 # Thread para gerenciar conexões
 def gerenciar_conexoes(server_socket):
     while True:
         data, client_address = server_socket.recvfrom(1024) 
         mensagem = data.decode().strip()
-        print(f"Recebido: {mensagem} de {client_address}")
+        # print(f"Recebido: {mensagem} de {client_address}")
         
         tipo, processo = decodifica_mensagem(mensagem)
         
@@ -56,12 +55,11 @@ def gerenciar_conexoes(server_socket):
             with lock: # Registra que um processo liberou a região crítica
                 if processo in processos_na_rc:
                     processos_na_rc[processo]['release'] = True 
-            registrar_log(3, processo)
 
 # Thread para executar o algoritmo de exclusão mútua
 def executar_algoritmo(server_socket):
     while True:
-        if not fila_pedidos.empty():
+        if not fila_pedidos.empty() and not processos_na_rc:
             requisicao = fila_pedidos.get()
             processo = requisicao['processo']
             endereco = requisicao['endereco']
@@ -77,14 +75,21 @@ def executar_algoritmo(server_socket):
             # Aguardar o RELEASE
             while True:
                 with lock:
-                    if processos_na_rc[processo]['release']:
+                    if processo in processos_na_rc and processos_na_rc[processo]['release']:
                         del processos_na_rc[processo]
+                        registrar_log(3, processo) # O release só deve ser registrado quando ele é usado
                         break
 
 # Thread para interface do terminal
 def interface_terminal():
     while True:
-        comando = int(input("\n\n 1) imprimir a fila de pedidos atual \n 2) imprimir quantas vezes cada processo foi atendido \n 3) encerrar a execução \n Opção: "))
+        entrada = input("\n\n 1) imprimir a fila de pedidos atual \n 2) imprimir quantas vezes cada processo foi atendido \n 3) encerrar a execução \n Opção: ")
+        
+        if not entrada or not entrada.isdigit():  # Garante que só números sejam aceitos
+            print("Entrada inválida! Digite um número entre 1 e 3.")
+            continue
+
+        comando = int(entrada)
         if comando == 1:
             print("\n\nFila atual:")
             with lock:

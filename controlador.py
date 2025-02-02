@@ -7,6 +7,13 @@ import os
 NUM_PROCESSOS = 5  
 REPETICOES = 10    
 PROCESSO_SCRIPT = "processo.py" 
+
+class LinhaLog: # Classe para armazenar informações de log
+    def __init__(self, tipo, processo, timestamp):
+        self.tipo = tipo
+        self.processo = processo
+        self.timestamp = timestamp
+
 def iniciar_processos(n, r):
     processos = []
     for processo_id in range(1, n + 1):
@@ -14,7 +21,7 @@ def iniciar_processos(n, r):
         processo = subprocess.Popen(
             ["python", PROCESSO_SCRIPT, str(processo_id), str(r)],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
         processos.append(processo)
         #time.sleep(0.1)  # Pequeno intervalo para evitar sobrecarga inicial
@@ -23,7 +30,7 @@ def iniciar_processos(n, r):
 
 def aguardar_processos(processos):
     for i, processo in enumerate(processos, start=1):
-        print(f"Aguardando finalização do Processo {i}...")
+        #print(f"Aguardando finalização do Processo {i}...")
         processo.wait()
         print(f"Processo {i} finalizado.")
 
@@ -33,44 +40,46 @@ def verificar_log(arquivo_log):
         with open(arquivo_log, "r", encoding="utf-8") as f:
             linhas = f.readlines()
 
-        request_processos = []
-        grant_processos = []
-        release_processos = []
-
         # Processar as mensagens no log
+        logs = []
         for linha in linhas:
-            match = re.search(r"\[(.*?)\] (\d+) \| Processo: (\d+) \| Mensagem: (.*)", linha)
+            match = re.search(r"\[(.*?)\] - (\d+) - (REQUEST|GRANT|RELEASE)", linha)
             if match:
-                tipo = int(match.group(2))
-                processo = int(match.group(3))
+                timestamp = match.group(1)
+                processo = int(match.group(2))
+                tipo = match.group(3)
+                logs.append(LinhaLog(tipo, processo, timestamp))
 
-                if tipo == 1:  # REQUEST
-                    request_processos.append(processo)
-                elif tipo == 2:  # GRANT
-                    grant_processos.append(processo)
-                elif tipo == 3:  # RELEASE
-                    release_processos.append(processo)
+        # Verificar a ordem das mensagens para cada processo
+        for i in range(1, NUM_PROCESSOS + 1):
+            estado = "INICIO"
+            for index, linha in enumerate(logs):
+                if linha.processo == i:
+                    #print(f'[Index {index}]{linha.processo} - estado {estado} - recebeu {linha.tipo}')
+                    # Se o estado é {estado} e recebe um {linha.tipo} vai para {linha.tipo}
+                    if estado == "INICIO" and linha.tipo == "REQUEST":
+                        estado = "REQUEST"
+                    elif estado == "REQUEST" and linha.tipo == "GRANT":
+                        estado = "GRANT"
+                    elif estado == "GRANT" and linha.tipo == "RELEASE":
+                        estado = "RELEASE"
+                    elif estado == "RELEASE" and linha.tipo == "REQUEST":
+                        estado = "REQUEST"
+                    else:
+                        print(f"Erro: Processo {i} não segue a ordem correta, na linha {index + 1}")
+                        return False
 
-        # Verificar se GRANT e RELEASE estão intercalados
-        if len(grant_processos) != len(release_processos):
-            print("Erro: O número de mensagens GRANT e RELEASE não é igual.")
-            return False
-
-        for i in range(len(grant_processos)):
-            if grant_processos[i] != release_processos[i]:
-                print(f"Erro: Após o GRANT para o processo {grant_processos[i]}, o RELEASE ocorreu para o processo {release_processos[i]}.")
+            if estado == "RELEASE":
+                print(f"Processo {i} seguiu a sequência correta")
+            else:
+                print(f"Erro: Processo {i} não completou a sequência REQUEST -> GRANT -> RELEASE")
                 return False
 
-        # Verificar se a ordem de REQUEST é a mesma de RELEASE
-        if request_processos != release_processos:
-            print("Erro: A ordem dos processos nas mensagens REQUEST e RELEASE não coincide.")
-            return False
-
-        print("O log do coordenador está correto.")
+        print("\nO log do coordenador está correto\n")
         return True
 
     except FileNotFoundError:
-        print(f"Erro: O arquivo {arquivo_log} não foi encontrado.")
+        print(f"Erro: O arquivo {arquivo_log} não foi encontrado")
         return False
 
 
@@ -81,16 +90,15 @@ def verificar_resultado(arquivo_resultado, n):
             linhas = f.readlines()
 
         if len(linhas) != n:
-            print(f"Erro: O arquivo deve ter {n} linhas, mas possui {len(linhas)}.")
+            print(f"Erro: O arquivo deve ter {n} linhas, mas possui {len(linhas)}")
             return False
 
-        processos_vistos = []
         timestamps = []
 
         for linha in linhas:
             match = re.search(r"Processo (\d+) - (.*?)$", linha.strip())
             if match:
-                processo = int(match.group(1))
+                # processo = int(match.group(1))
                 timestamp = match.group(2)
 
                 # Verificar formato do timestamp
@@ -105,32 +113,34 @@ def verificar_resultado(arquivo_resultado, n):
 
         # Verificar ordem dos timestamps
         if timestamps != sorted(timestamps):
-            print("Erro: A ordem dos timestamps no arquivo não respeita a evolução do relógio.")
+            print("Erro: A ordem dos timestamps no arquivo não respeita a evolução do relógio")
             return False
 
-        print("O arquivo resultado.txt está correto.")
+        print("O arquivo resultado.txt está correto")
         return True
 
     except FileNotFoundError:
-        print(f"Erro: O arquivo {arquivo_resultado} não foi encontrado.")
+        print(f"Erro: O arquivo {arquivo_resultado} não foi encontrado")
         return False
 
 if __name__ == "__main__":
-    print("Iniciando controladora...")
+    print("Iniciando controlador...")
 
-    # Excluir arquivos de resultado e log
-    # Excluir arquivos de resultado e log
+    # 1 - Excluir arquivos de resultado e log
     arquivos = ["resultado.txt", "coordenador.log"]
     for arquivo in arquivos:
         if os.path.exists(arquivo):
             os.remove(arquivo)
-            print(f"{arquivo} excluído.")
+            print(f"{arquivo} excluído")
         else:
-            print(f"{arquivo} não encontrado.")
+            print(f"{arquivo} não encontrado")
 
+    # 2 - Inicializa os processos e aguarda terminaram
     processos = iniciar_processos(NUM_PROCESSOS, REPETICOES)
+    print(f"Aguardando finalização dos processos ...")
     aguardar_processos(processos)
-    print("Todos os processos finalizaram.")
-    print("Execução concluída. Verifique o arquivo resultado.txt.")
+    print("Todos os processos finalizaram")
+
+    # 3 - Verifica se os arquivos gerados pelo coordenador estão
     verificar_log("coordenador.log")
     verificar_resultado("resultado.txt", NUM_PROCESSOS * REPETICOES)
