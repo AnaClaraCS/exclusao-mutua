@@ -1,0 +1,5 @@
+# Ignorar arquivo de log
+*.log
+
+# Ignorar arquivo de resultado
+resultado.txt
