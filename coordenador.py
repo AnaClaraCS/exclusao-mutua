@@ -49,8 +49,8 @@ def gerenciar_conexoes(server_socket):
                 processos_atendidos[processo] = 0
 
         if tipo == 1:  # REQUEST
-            fila_pedidos.put({'processo': processo, 'endereco': client_address})
             registrar_log(1, processo)
+            fila_pedidos.put({'processo': processo, 'endereco': client_address})
         elif tipo == 3:  # RELEASE
             with lock: # Registra que um processo liberou a região crítica
                 if processo in processos_na_rc:

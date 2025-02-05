@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 NUM_PROCESSOS = 5  
-REPETICOES = 10    
+REPETICOES = 5
 PROCESSO_SCRIPT = "processo.py" 
 
 class LinhaLog: # Classe para armazenar informações de log
@@ -82,7 +82,6 @@ def verificar_log(arquivo_log):
         print(f"Erro: O arquivo {arquivo_log} não foi encontrado")
         return False
 
-
 # Função para verificar o resultado.txt
 def verificar_resultado(arquivo_resultado, n):
     try:
@@ -116,7 +115,7 @@ def verificar_resultado(arquivo_resultado, n):
             print("Erro: A ordem dos timestamps no arquivo não respeita a evolução do relógio")
             return False
 
-        print("O arquivo resultado.txt está correto")
+        print("O arquivo resultado.txt está correto\n")
         return True
 
     except FileNotFoundError:
@@ -139,7 +138,7 @@ if __name__ == "__main__":
     processos = iniciar_processos(NUM_PROCESSOS, REPETICOES)
     print(f"Aguardando finalização dos processos ...")
     aguardar_processos(processos)
-    print("Todos os processos finalizaram")
+    print("Todos os processos finalizaram\n")
 
     # 3 - Verifica se os arquivos gerados pelo coordenador estão
     verificar_log("coordenador.log")
